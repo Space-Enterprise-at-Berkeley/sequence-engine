@@ -1,0 +1,3 @@
+[submodule "universalproto"]
+	path = universalproto
+	url = https://github.com/Space-Enterprise-at-Berkeley/universalproto.git
