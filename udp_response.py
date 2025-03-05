@@ -1,9 +1,27 @@
 import socket
 import struct
 import sys
+import json
+import re
+
+with open("universalproto/config.jsonc") as c:
+    real_json = re.sub(r"(\/\/.*?\n|\/\*.*?\*\/)", r"", c.read(), flags=re.DOTALL)
+    config = json.loads(real_json)
+    print(config)
+
+class Packet:
+    def __init__(self):
+        self.fields = dict()
+        self.timestamp = 0
+        self.error = True
+        self.board = ""
+        self.id = -1
 
 # under construction, parse packet data
 def parsePacket(data, addr):
+    packet = Packet()
+    
+
 
     return 0
 
@@ -43,4 +61,4 @@ while True:
     # print("bobr")
 
     data, addr = mc_sock.recvfrom(1024)
-    print(f"Received multicast packet from {addr[0]}:{addr[1]}: " + data.hex(" ") + '\n')
+    #print(f"Received multicast packet from {addr[0]}:{addr[1]}: " + data.hex(" ") + '\n')
