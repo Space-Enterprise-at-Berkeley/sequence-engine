@@ -3,11 +3,18 @@ import struct
 import sys
 import json
 import re
+import warnings
 
+# read config.json
 with open("universalproto/config.jsonc") as c:
-    real_json = re.sub(r"(\/\/.*?\n|\/\*.*?\*\/)", r"", c.read(), flags=re.DOTALL)
+    # zander gave me this regex, goat
+    real_json = re.sub(r"(\/\/.*?\n|\/\*.*?\*\/)", r"", c.read(), flags=re.DOTALL) # remove all comments from config.jsonc
     config = json.loads(real_json)
-    print(config)
+
+# flip deviceIDs and put into boards dict
+boards = {}
+for board, id in config['deviceIds'].items():
+    boards.update({str(id): board})
 
 class Packet:
     def __init__(self):
@@ -20,8 +27,15 @@ class Packet:
 # under construction, parse packet data
 def parsePacket(data, addr):
     packet = Packet()
-    
+    boardID = addr[0][-2:]
 
+    if boardID not in boards: # confirm packet board id
+        warnings.warn(f"Warning: IP {addr[0]} not recognized")
+        packet.error = True
+        return packet
+
+    board = boards[boardID]
+    packet.board = board
 
     return 0
 
@@ -61,4 +75,5 @@ while True:
     # print("bobr")
 
     data, addr = mc_sock.recvfrom(1024)
+    parsePacket(data, addr)
     #print(f"Received multicast packet from {addr[0]}:{addr[1]}: " + data.hex(" ") + '\n')
