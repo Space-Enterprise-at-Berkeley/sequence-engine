@@ -1,12 +1,24 @@
 import socket
-import struct
+import struct # pack and unpack byte arrays
 import sys
-import json
-import re
 import warnings
-import fnmatch
-import pprint
 
+from packet_config import Config
+
+# i put all the packet spec json parsing in a separate file
+config = Config()
+
+# enum: only exists if values are enums
+# length: how many values are in data
+# values: array of packet data
+class PacketData:
+    def __init__(self):
+        self.enum = ""
+        self.length = 0
+        self.values = []
+
+# fields: dictionary of { symbol, PacketData }
+#         for each line item of a packet type in types.jsonc
 class Packet:
     def __init__(self):
         self.fields = {}
@@ -15,13 +27,19 @@ class Packet:
         self.board = ""
         self.id = -1
 
-class Config:
-    def __init__(self):
-        self.boards = {}
-        self.ip_lookup = {}
-        self.packets = {}
-
-config = Config()
+    def print(self):
+        if self.error == True:
+            print("Error: Cannot read packet")
+        else:
+            print(f"{self.board} board, packet id {self.id}")
+            for name, field in self.fields.items():
+                print(f"{config.packets[self.board][self.id]} ({name}): ", end = '')
+                if len(field.enum) != 0:
+                    print(f"(enum {field.enum})")
+                else:
+                    print()
+                print(f"{field.values}:")
+            print()
 
 # idk https://en.wikipedia.org/wiki/Fletcher%27s_checksum
 def fletcher16(data):
@@ -32,32 +50,6 @@ def fletcher16(data):
 		b = (b + a) % 256
 	return a | (b << 8)
 
-# read config.jsonc
-with open("universalproto/config.jsonc") as c:
-    # zander gave me this regex, goat
-    real_json = re.sub(r"(\/\/.*?\n|\/\*.*?\*\/)", r"", c.read(), flags=re.DOTALL) # remove all comments from config.jsonc
-    config_json = json.loads(real_json)
-
-# read packets.jsonc
-with open("universalproto/packets.jsonc") as p:
-    real_json = re.sub(r"(\/\/.*?\n|\/\*.*?\*\/)", r"", p.read(), flags=re.DOTALL) # remove all comments from config.jsonc
-    packets_json = json.loads(real_json)
-
-# flip deviceIDs and put into config.boards
-for board, id in config_json["deviceIds"].items():
-    config.boards.update({str(id): board})
-    config.ip_lookup.update({board: str(id)})
-    config.packets[board] = {}
-        
-# add packet ids to config.packets
-for packet in packets_json:
-    for writer in packet["writes"]:
-        for board_name in config.ip_lookup:
-            if fnmatch.fnmatch(board_name, writer):
-                if "payload" in packet:
-                    config.packets[board_name].update({str(packet["id"]): packet["payload"]})
-
-# under construction, parse packet data
 # ref: struct.unpack_from() https://docs.python.org/3/library/struct.html
 def parse_packet(data, addr):
     packet = Packet()
@@ -78,6 +70,7 @@ def parse_packet(data, addr):
     
     board = config.boards[boardID]
     packet.board = board
+    packet.id = id
     
     # parse actual data and calculate checksum
     unpack = struct.unpack_from(f"<{6}sH{length}s", data)
@@ -97,14 +90,46 @@ def parse_packet(data, addr):
         packet.error = True
         return packet
 
-    return 0
+    packet.fields = parse_data(field_data, config.packets[board][id])
+
+    packet.error = False
+    packet.print()
+
+# parse data field based on packet data type
+def parse_data(data, type):
+    fields = {}
+    for item in config.types[type]:
+        field = PacketData()
+        length = 1
+        if "array" in item:
+            length = item["array"]
+
+        # parse byte array based on data type, ref struct lib
+        match item["type"]:
+            case "u8":
+                format = "B" * length
+            case "u16":
+                format = "S" * length
+            case "u32":
+                format = "I" * length
+            case "f32":
+                format = "f" * length
+
+        field.values = list(struct.unpack_from(format, data))
+        field.length = length
+
+        if "enum" in item:
+            field.enum = item["enum"]
+
+        fields[item["symbol"]] = field
+
+    return fields
 
 # require host ip argument
 if len(sys.argv) < 2:
     print("Missing IP argument")
     sys.exit()
 
-#UDP_IP = "127.0.0.1"
 BCAST_PORT = 42099
 MCAST_PORT = 42080
 
@@ -129,12 +154,6 @@ print(f"Listening for UDP packets on port {BCAST_PORT}")
 
 while True:
     # receive data
-
-    # data, addr = bc_sock.recvfrom(1024)
-    # print(f"Received broadcast packet from {addr}: {data.decode('utf-8')}")
-    # print("bobr")
-
     data, addr = mc_sock.recvfrom(1024)
-    # print(f"Received multicast packet from {addr[0]}:{addr[1]}: " + data.hex(" ") + '\n')
     parse_packet(data, addr)
 
