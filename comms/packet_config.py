@@ -2,6 +2,7 @@ import re
 import json
 import fnmatch # filename matching in packets.jsonc
 
+# parses packet spec json into Config object
 class Config:
     def __init__(self):
         self.boards = {}
