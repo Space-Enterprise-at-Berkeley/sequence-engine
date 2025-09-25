@@ -1,14 +1,16 @@
 from states import AutoventStates as States
 
 class Autovent:
-    AV_THRESHOLD = 500.0
-    AV_OVERPRESSURE_COUNT_LIMIT = 5
+    def __init__(self, board, channel):
+        self.AV_THRESHOLD = 500.0
+        self.AV_OVERPRESSURE_COUNT_LIMIT = 5
 
-    currState = States.AWAIT_PRESSURE
-    tankPressure = 0.0
-    overPressureCount = 0
+        self.BOARD_ID = board
+        self.CHANNEL = channel
 
-    def __init__(self, board):
+        self.curr_state = States.AWAIT_PRESSURE
+        self.tank_pressure = 0.0
+        self.over_pressure_count = 0
 
         pass
 
@@ -21,9 +23,9 @@ class Autovent:
 
                 case States.CHECK_THRESHOLD:
                     # open gems if pressure above threshold
-                    if self.tankPressure >= self.AV_THRESHOLD:
-                        self.overPressureCount += 1
-                        if self.overPressureCount > self.AV_OVERPRESSURE_COUNT_LIMIT:
+                    if self.tank_pressure >= self.AV_THRESHOLD:
+                        self.over_pressure_count += 1
+                        if self.over_pressure_count > self.AV_OVERPRESSURE_COUNT_LIMIT:
                             currState = States.SEND_ABORT
                         else:
                             currState = States.SEND_OPEN
@@ -31,25 +33,25 @@ class Autovent:
                         currState = States.SEND_CLOSE
 
                 case States.SEND_OPEN:
-                    self.AVOpenGems()
+                    self.av_open_gems()
 
                 case States.SEND_CLOSE:
-                    self.AVCloseGems()
+                    self.av_close_gems()
                     currState = States.AWAIT_PRESSURE
 
                 case States.SEND_ABORT:
-                    self.AVSendAbort()
+                    self.av_send_abort()
 
     # sends open packet to gems
-    def AVOpenGems(self):
+    def av_open_gems(self):
         pass
 
     # sends close packet to gems
-    def AVCloseGems(self):
+    def av_close_gems(self):
         pass
 
     # sends abort packet
-    def AVSendAbort(self):
+    def av_send_abort(self):
         pass
 
     
