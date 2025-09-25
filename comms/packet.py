@@ -34,16 +34,15 @@ class Packet:
             print(f"**{self.board.writes[self.id]} packet (id {self.id}) sent from {self.board.name} board**")
             for name, field in self.fields.items():
                 print(f"{name}", end = '')
-                if field.enum != "":
-                    print(f" (enum {field.enum}): ", end='')
 
+                if field.enum != "": # parse enum key from value
                     enum = next(k for k, v in config.types[field.enum].items() if v == field.values[0])
-                    print(enum)
+                    print(f" (enum {field.enum}): {enum}")
                 else:
                     print(": ", end='')
-                    if field.length == 1:
+                    if field.length == 1: # if single value just print the value
                         print(f"{field.values[0]}")
-                    else:
+                    else: # otherwise format as array
                         print(f"{field.values}")
             print()
     
@@ -81,11 +80,15 @@ class Packet:
         return True
 
     # send packet
-    def send_packet(self):
+    # TO DO: SET UP ACTUAL SENDING CODE, THIS JUST BUILDS THE BYTEARRAY
+    # ALSO HANDLE GD AND ABORT PACKET SENDING (SPECIAL CASES)
+    def send(self):
         if not self.validate_packet():
             warnings.warn(f"Error: attempted to send invalid packet")
             return
         
+        # the bytearray construction might be weird/messy but couldn't think of a different way
+        # start by filling in data
         data_out = bytearray()
 
         packet_type = config.boards["SE"].writes.get(self.id)
@@ -97,14 +100,13 @@ class Packet:
             data = self.fields[item["symbol"]]
 
             temp_out = bytearray(byte_length)
-
             if length == 1:
                 if "enum" in item:
                     data = config.types[item["enum"]][data]
 
                 struct.pack_into(format, temp_out, 0, data)
             else:
-                bytes = get_byte_length(format[0])
+                bytes = int(byte_length / length)
                 for i in range(length):
                     struct.pack_into(format[i], temp_out, i * bytes, data[i])
 
@@ -113,15 +115,14 @@ class Packet:
         header_format = "<BBIH"
         byte_length = get_byte_length(header_format)
 
+        # pack the header (see parse_packet for format) and calculate checksum
         out = bytearray(byte_length)
         struct.pack_into(header_format, out, 0, self.id, data_length, 0, 0)
 
         checksum = fletcher16(out[:-2] + data_out)
-
         struct.pack_into("H", out, byte_length - 2, checksum)
 
         out.extend(data_out)
-
         return out
 
 # -----------------------------------------------------
@@ -190,6 +191,7 @@ def parse_packet(data, addr):
     packet.error = False
     packet.print()
 
+# returns struct format for packet item
 def get_data_format(item):
     length = 1
     if "array" in item:
@@ -266,12 +268,12 @@ test_packet.fields = {
 result = test_packet.validate_packet()
 if result:
     print("actuate packet valid")
-    out = test_packet.send_packet()
+    out = test_packet.send()
     parse_packet(out, [f"10.0.0.{sys.argv[1]}"])
 else:
     print("actuate packet invalid")
 
-    
+# test abort
 test_packet.id = 133
 test_packet.fields = {
     "systemMode": "COLDFLOW",
@@ -280,11 +282,12 @@ test_packet.fields = {
 result = test_packet.validate_packet()
 if result:
     print("abort packet valid")
-    out = test_packet.send_packet()
+    out = test_packet.send()
     parse_packet(out, [f"10.0.0.{sys.argv[1]}"])
 else:
     print("abort packet invalid")
 
+# test array packets (doesn't work anymore cuz ac can't read TCvalues but i fucked w packet spec for debugging)
 test_packet.id = 2
 test_packet.fields = {
     "values": [0, 1, 2, 3, 4, 5, 6, 7]
@@ -292,7 +295,7 @@ test_packet.fields = {
 result = test_packet.validate_packet()
 if result:
     print("TCvalues packet valid")
-    out = test_packet.send_packet()
+    out = test_packet.send()
     parse_packet(out, [f"10.0.0.{sys.argv[1]}"])
 else:
     print("TCvalues packet invalid")
