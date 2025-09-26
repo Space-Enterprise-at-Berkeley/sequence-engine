@@ -1,7 +1,11 @@
-from states import AutoventStates as States
+from config.states import AutoventStates as States
 from comms.packet import Packet
+
 class Autovent:
-    def __init__(self, ac_board, ac_channel, pt_board, pt_channel, uptime, cycletime, duty_cycletime):
+    def __init__(self, ac_board, ac_channel, pt_board, pt_channel, uptime, cycletime, duty_cycletime, nos):
+        self.name = "AUTOVENT"
+        self.is_nos = nos
+        
         self.AV_THRESHOLD = 500.0
         self.AV_OVERPRESSURE_COUNT_LIMIT = 5
         self.DUTY_SAMPLE_SIZE = 600 # size of duty buffer
@@ -14,7 +18,7 @@ class Autovent:
         self.PT_BOARD = pt_board
         self.PT_CHANNEL = pt_channel
 
-        self.curr_state = States.AWAIT_PRESSURE
+        self.curr_state = States.BELOW_THRESHOLD
         self.tank_pressure = 0.0
         self.over_pressure_count = 0
 
@@ -26,6 +30,8 @@ class Autovent:
         # duty cycle
         self.duty_buffer = [0] * self.DUTY_SAMPLE_SIZE
         self.buffer_index = -1
+
+        print(f"built {"NOS" if self.is_nos else "IPA"} autovent on {self.AC_BOARD} channel {self.AC_CHANNEL}, reading {self.PT_BOARD} channel {self.PT_CHANNEL}")
 
         pass
 
@@ -49,7 +55,7 @@ class Autovent:
 
         # open gems if pressure above threshold
         if tank_pressure >= self.AV_THRESHOLD:
-            currState = States.ABOVE_THRESHOLD
+            self.currState = States.ABOVE_THRESHOLD
             self.over_pressure_count += 1
 
             if self.over_pressure_count > self.AV_OVERPRESSURE_COUNT_LIMIT:
@@ -59,7 +65,7 @@ class Autovent:
                 return_packet = self.av_open_gems()
 
         else:
-            currState = States.BELOW_THRESHOLD
+            self.currState = States.BELOW_THRESHOLD
             self.duty_buffer[self.buffer_index] = 0
             return_packet = self.av_close_gems()
 

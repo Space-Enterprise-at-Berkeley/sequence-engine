@@ -4,7 +4,7 @@ import sys
 import warnings
 from enum import Enum
 
-from packet_config import config
+from comms.packet_config import config
 
 # enum: only exists if values are enums
 # length: how many values are in data
@@ -18,20 +18,20 @@ class PacketData:
 # fields: dictionary of { symbol, PacketData }
 #         for each line item of a packet type in types.jsonc
 class Packet:
-
     def __init__(self):
         self.fields = {}
         self.timestamp = 0
         self.error = True
         self.board = ""
         self.id = -1
+        self.name = ""
 
     def print(self):
         if self.error == True:
             print("Error: Cannot read packet")
         else:
             print()
-            print(f"**{self.board.writes[self.id]} packet (id {self.id}) sent from {self.board.name} board**")
+            print(f"**{self.board.writes[self.id]["name"]} packet (id {self.id}) sent from {self.board.name} board**")
             for name, field in self.fields.items():
                 print(f"{name}", end = '')
 
@@ -47,6 +47,12 @@ class Packet:
             print()
     
     def validate_packet(self):
+        # get packet id from name
+        self.id = next((id for id, vals in config.boards["SE"].writes.items() if vals.get("name") == self.name), None)
+        if self.id is None:
+            warnings.warn(f"Error: Sequence Engine has no packet with name {self.name}")
+            return False
+
         # find right packet for id
         packet_type = config.boards["SE"].writes.get(self.id)
         if packet_type is None:
@@ -186,6 +192,7 @@ def parse_packet(data, addr):
         packet.error = True
         return packet
 
+    packet.name = board.writes[id]["name"]
     packet.fields = parse_data(field_data, board.writes[id])
 
     packet.error = False
@@ -254,52 +261,6 @@ def parse_data(data, type):
 # main loop (temp/debug)
 #
 # -----------------------------------------------------
-
-# test ACActuateActuator
-test_packet = Packet()
-test_packet.board = "AC_1"
-test_packet.id = 100
-test_packet.fields = {
-    "actuatorNumber": 1,
-    "action": "ON",
-    "actuateTime": 0
-}
-
-result = test_packet.validate_packet()
-if result:
-    print("actuate packet valid")
-    out = test_packet.send()
-    parse_packet(out, [f"10.0.0.{sys.argv[1]}"])
-else:
-    print("actuate packet invalid")
-
-# test abort
-test_packet.id = 133
-test_packet.fields = {
-    "systemMode": "COLDFLOW",
-    "abortReason": "NOS_OVERPRESSURE"
-}
-result = test_packet.validate_packet()
-if result:
-    print("abort packet valid")
-    out = test_packet.send()
-    parse_packet(out, [f"10.0.0.{sys.argv[1]}"])
-else:
-    print("abort packet invalid")
-
-# test array packets (doesn't work anymore cuz ac can't read TCvalues but i fucked w packet spec for debugging)
-test_packet.id = 2
-test_packet.fields = {
-    "values": [0, 1, 2, 3, 4, 5, 6, 7]
-}
-result = test_packet.validate_packet()
-if result:
-    print("TCvalues packet valid")
-    out = test_packet.send()
-    parse_packet(out, [f"10.0.0.{sys.argv[1]}"])
-else:
-    print("TCvalues packet invalid")
-
 
 # require host ip argument
 if len(sys.argv) < 2:

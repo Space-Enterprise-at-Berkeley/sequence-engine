@@ -2,7 +2,7 @@ import re
 import json
 import fnmatch # filename matching in packets.jsonc
 
-PACKET_SPEC_PATH = "../universalproto/"
+PACKET_SPEC_PATH = "universalproto/"
 
 class Board:
     def __init__(self, name, id):
@@ -19,6 +19,7 @@ class Config:
 
         self.boards = {} # dictionary {board name: Board object}
         self.types = {}
+        self.channels = {}
 
         # zander gave me this regex, goat
         regex = r"(\/\/.*?\n|\/\*.*?\*\/)"
@@ -54,19 +55,28 @@ class Config:
                         if fnmatch.fnmatch(board.name, writer):
                             if "payload" in packet:
                                 # add packet type to board.writes
-                                board.writes[packet["id"]] = packet["payload"]
+                                board.writes[packet["id"]] = {
+                                    "name": packet["name"],
+                                    "payload": packet["payload"]
+                                }
                 for reader in packet["reads"]:
                         if fnmatch.fnmatch(board.name, reader):
                             if "payload" in packet:
                                 # add packet type to board.reads
-                                board.reads[packet["id"]] = packet["payload"]
+                                board.reads[packet["id"]] = {
+                                    "name": packet["name"],
+                                    "payload": packet["payload"]
+                                }
 
         # add types to config.types
         for name, type in types_json.items():
             self.types[name] = type
 
         # add channel mappings to config.channels
-        
+        for name, channels in config_json.items():
+            if name == "deviceIds" or name == "version":
+                continue
+            self.channels[name] = channels
 
 config = Config()
 print(config.boards["SE"].writes)
