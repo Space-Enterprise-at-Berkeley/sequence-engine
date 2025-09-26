@@ -1,45 +1,88 @@
 from states import AutoventStates as States
 from comms.packet import Packet
 class Autovent:
-    def __init__(self, board, channel):
+    def __init__(self, ac_board, ac_channel, pt_board, pt_channel, uptime, cycletime, duty_cycletime):
         self.AV_THRESHOLD = 500.0
         self.AV_OVERPRESSURE_COUNT_LIMIT = 5
+        self.DUTY_SAMPLE_SIZE = 600 # size of duty buffer
+        self.CYCLE_TIME = cycletime # autovent cycle time, in ms
+        self.DUTY_CYCLE_TIME = duty_cycletime
 
-        self.BOARD = board
-        self.CHANNEL = channel
+        # board/channel defs
+        self.AC_BOARD = ac_board
+        self.AC_CHANNEL = ac_channel
+        self.PT_BOARD = pt_board
+        self.PT_CHANNEL = pt_channel
 
         self.curr_state = States.AWAIT_PRESSURE
         self.tank_pressure = 0.0
         self.over_pressure_count = 0
 
+        # handles cycle times
+        self.uptime = uptime
+        self.cooldown = 0
+        self.duty_cycle_cooldown = 0
+        
+        # duty cycle
+        self.duty_buffer = [0] * self.DUTY_SAMPLE_SIZE
+        self.buffer_index = -1
+
         pass
 
     # run autovent
-    def run(self):
-        match currState:
-            case States.AWAIT_PRESSURE:
-                pass
+    def run(self, uptime, tank_pressure):
+        dt = uptime - self.uptime
+        self.uptime = uptime
 
-            case States.CHECK_THRESHOLD:
-                # open gems if pressure above threshold
-                if self.tank_pressure >= self.AV_THRESHOLD:
-                    self.over_pressure_count += 1
-                    if self.over_pressure_count > self.AV_OVERPRESSURE_COUNT_LIMIT:
-                        currState = States.SEND_ABORT
-                    else:
-                        currState = States.SEND_OPEN
-                else:
-                    currState = States.SEND_CLOSE
+        self.cooldown -= dt
+        self.duty_cycle_cooldown -= dt
 
-            case States.SEND_OPEN:
-                self.av_open_gems()
+        self.buffer_index += 1
+        if self.buffer_index == self.DUTY_SAMPLE_SIZE:
+            self.buffer_index = 0
 
-            case States.SEND_CLOSE:
-                self.av_close_gems()
-                currState = States.AWAIT_PRESSURE
+        if(self.cooldown > 0): return
 
-            case States.SEND_ABORT:
-                self.av_send_abort()
+        return_packet = None
+        duty_cycle_packet = None
+        db_packet = None
+
+        # open gems if pressure above threshold
+        if tank_pressure >= self.AV_THRESHOLD:
+            currState = States.ABOVE_THRESHOLD
+            self.over_pressure_count += 1
+
+            if self.over_pressure_count > self.AV_OVERPRESSURE_COUNT_LIMIT:
+                return_packet = self.av_send_abort()
+            else:
+                self.duty_buffer[self.buffer_index] = 1
+                return_packet = self.av_open_gems()
+
+        else:
+            currState = States.BELOW_THRESHOLD
+            self.duty_buffer[self.buffer_index] = 0
+            return_packet = self.av_close_gems()
+
+        if self.duty_cycle_cooldown <= 0:
+            duty_cycle_packet = self.duty_cycle()
+            self.duty_cycle_cooldown = self.DUTY_CYCLE_TIME
+
+        self.cooldown = self.CYCLE_TIME
+        return return_packet, duty_cycle_packet, db_packet
+
+    # calculate and send duty cycle packet 
+    def duty_cycle(self):
+        avg = sum(self.duty_buffer)
+        avg *= 100.0 / self.DUTY_SAMPLE_SIZE
+
+        duty_packet = Packet()
+        duty_packet.board = "GD"
+        duty_packet.id = 8
+        duty_packet.field = {
+            "gemsDutyCycle": avg
+        }
+        return duty_packet.send()
+
 
     # sends open packet to gems
     def av_open_gems(self):
@@ -51,7 +94,7 @@ class Autovent:
             "action": "ON",
             "actuateTime": 0
         }
-        open_packet.send()
+        return open_packet.send()
 
     # sends close packet to gems
     def av_close_gems(self):
@@ -63,7 +106,7 @@ class Autovent:
             "action": "OFF",
             "actuateTime": 0
         }
-        close_packet.send()
+        return close_packet.send()
 
     # sends abort packet
     # TO DO: ABORTS SHOULD SEND OVER BROADCAST (PACKET.PY UPDATE)
@@ -75,7 +118,7 @@ class Autovent:
             "systemMode": "COLDFLOW", # NEED GLOBAL SE SYSTEMMODE MAYBE
             "abortReason": "NOS_OVERPRESSURE" # NEED MEMBER BOOL TO SEE IF NOS OR IPA
         }
-        abort_packet.send()
+        return abort_packet.send()
 
     
     

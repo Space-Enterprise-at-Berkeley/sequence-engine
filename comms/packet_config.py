@@ -65,5 +65,8 @@ class Config:
         for name, type in types_json.items():
             self.types[name] = type
 
+        # add channel mappings to config.channels
+        
+
 config = Config()
 print(config.boards["SE"].writes)
