@@ -36,7 +36,7 @@ class Autovent:
         pass
 
     # run autovent
-    def run(self, uptime, tank_pressure):
+    def run(self, uptime):
         dt = uptime - self.uptime
         self.uptime = uptime
 
@@ -52,6 +52,9 @@ class Autovent:
         return_packet = None
         duty_cycle_packet = None
         db_packet = None
+
+        # get latest tank pressure packet
+        
 
         # open gems if pressure above threshold
         if tank_pressure >= self.AV_THRESHOLD:

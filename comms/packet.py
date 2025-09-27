@@ -4,6 +4,8 @@ import sys
 import warnings
 from enum import Enum
 
+import json
+
 from comms.packet_config import config
 
 # enum: only exists if values are enums
@@ -31,7 +33,7 @@ class Packet:
             print("Error: Cannot read packet")
         else:
             print()
-            print(f"**{self.board.writes[self.id]["name"]} packet (id {self.id}) sent from {self.board.name} board**")
+            print(f"**{config.boards[self.board].writes[self.id]["name"]} packet (id {self.id}) sent from {self.board} board**")
             for name, field in self.fields.items():
                 print(f"{name}", end = '')
 
@@ -172,7 +174,7 @@ def parse_packet(data, addr):
         return packet
     
     board = config.boards[config.id_to_board[board_id]]
-    packet.board = board
+    packet.board = board.name
     packet.id = id
     
     # parse actual data and calculate checksum
@@ -193,10 +195,11 @@ def parse_packet(data, addr):
         return packet
 
     packet.name = board.writes[id]["name"]
-    packet.fields = parse_data(field_data, board.writes[id])
-
+    packet.fields = parse_data(field_data, board.writes[id]["payload"])
+    
     packet.error = False
-    packet.print()
+    
+    return packet
 
 # returns struct format for packet item
 def get_data_format(item):
@@ -255,42 +258,4 @@ def parse_data(data, type):
         fields[item["symbol"]] = field
 
     return fields
-
-# -----------------------------------------------------
-#
-# main loop (temp/debug)
-#
-# -----------------------------------------------------
-
-# require host ip argument
-if len(sys.argv) < 2:
-    print("Missing IP argument")
-    sys.exit()
-
-BCAST_PORT = 42099
-MCAST_PORT = 42080
-
-#define ips
-host = socket.inet_aton(f"10.0.0.{sys.argv[1]}")
-mcast_ip = socket.inet_aton("224.0.0.3")
-
-# create broadcast UDP socket
-bc_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-bc_sock.bind(("", BCAST_PORT))
-
-# create multicast UDP socket
-mc_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-mc_sock.bind(("", MCAST_PORT))
-
-# add host to multicast group, requires packing into ip_mreqn struct
-# ref https://man7.org/linux/man-pages/man7/ip.7.html
-mreq = struct.pack("=4s4s", mcast_ip, host)
-# mc_sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-
-print(f"Listening for UDP packets on port {BCAST_PORT}")
-
-# while True:
-#     # receive data
-#     data, addr = mc_sock.recvfrom(1024)
-#     parse_packet(data, addr)
 

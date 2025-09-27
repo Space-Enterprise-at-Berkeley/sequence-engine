@@ -1,7 +1,11 @@
-from autovent import Autovent
+from sequences.autovent import Autovent
 from comms.packet_config import config
-import time
+from comms.packet_comms import *
 from config.system_config import SystemConfig
+from comms.packet_buffer import PacketBuffer
+
+import time
+
 
 def autovent_init():
     # build nos autovent sequence
@@ -45,5 +49,8 @@ sequences = []
 autovent_init()
 
 while True:
-    for sequence in sequences:
-        sequence.run(time.time())
+    read_packets_mc()
+    PacketBuffer.buffer["PT_2"][2].print()
+    #PacketBuffer.print()
+    # for sequence in sequences:
+    #     sequence.run(time.time())
