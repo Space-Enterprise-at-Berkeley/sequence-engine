@@ -26,11 +26,14 @@ mc_sock.bind(("", MCAST_PORT))
 mreq = struct.pack("=4s4s", mcast_group, host)  
 mc_sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
-
 def read_packets_mc():
     data, addr = mc_sock.recvfrom(1024)
     packet = parse_packet(data, addr)
-    PacketBuffer.buffer[packet.board][packet.id] = packet
+    PacketBuffer.update(packet)
 
 def send_packet(packet):
+
+
+
+
     pass

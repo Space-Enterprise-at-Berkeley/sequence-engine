@@ -24,14 +24,18 @@ class PacketBuffer:
     def update(packet):
         iterator = 0
         if packet.id in PacketBuffer.iterators[packet.board]:
-            PacketBuffer.iterators[packet.board][packet.id] += 1
             iterator = PacketBuffer.iterators[packet.board][packet.id]
-        else:
+
+            # iterate iterator (ring buffer)
+            if iterator == PacketBuffer.MAX_BUFFER_SIZE:
+                PacketBuffer.iterators[packet.board][packet.id] = 0
+            else:
+                PacketBuffer.iterators[packet.board][packet.id] += 1
+                
+        else: # create new iterator & buffer for packet
             PacketBuffer.iterators[packet.board][packet.id] = 0
             PacketBuffer.buffer[packet.board][packet.id] = []
-        
-        #iterator = 
 
-        #PacketBuffer.buffer[packet.board][packet.id]
+        PacketBuffer.buffer[packet.board][packet.id][iterator] = packet
 
 packet_buffer = PacketBuffer()
