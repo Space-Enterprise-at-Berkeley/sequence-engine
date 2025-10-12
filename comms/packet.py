@@ -7,6 +7,7 @@ from enum import Enum
 import json
 
 from comms.packet_config import config
+# from comms.packet_comms import send_packet
 
 # enum: only exists if values are enums
 # length: how many values are in data
@@ -132,6 +133,7 @@ class Packet:
 
         out.extend(data_out)
         return out
+        #send_packet(self, out)
 
 # -----------------------------------------------------
 #

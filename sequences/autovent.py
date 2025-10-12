@@ -65,19 +65,18 @@ class Autovent:
                 return_packet = self.av_send_abort()
             else:
                 self.duty_buffer[self.buffer_index] = 1
-                return_packet = self.av_open_gems()
+                self.av_open_gems()
 
         else:
             self.currState = States.BELOW_THRESHOLD
             self.duty_buffer[self.buffer_index] = 0
-            return_packet = self.av_close_gems()
+            self.av_close_gems()
 
         if self.duty_cycle_cooldown <= 0:
-            duty_cycle_packet = self.duty_cycle()
+            self.duty_cycle()
             self.duty_cycle_cooldown = self.DUTY_CYCLE_TIME
 
         self.cooldown = self.CYCLE_TIME
-        return return_packet, duty_cycle_packet, db_packet
 
     # calculate and send duty cycle packet 
     def duty_cycle(self):
@@ -87,47 +86,47 @@ class Autovent:
         duty_packet = Packet()
         duty_packet.board = "GD"
         duty_packet.id = 8
-        duty_packet.field = {
+        duty_packet.fields = {
             "gemsDutyCycle": avg
         }
-        return duty_packet.send()
+        duty_packet.send()
 
 
     # sends open packet to gems
     def av_open_gems(self):
         open_packet = Packet()
-        open_packet.board = self.BOARD
+        open_packet.board = self.AC_BOARD
         open_packet.id = 100
         open_packet.fields = {
-            "actuatorNumber": self.CHANNEL,
+            "actuatorNumber": self.AC_CHANNEL,
             "action": "ON",
             "actuateTime": 0
         }
-        return open_packet.send()
+        open_packet.send()
 
     # sends close packet to gems
     def av_close_gems(self):
         close_packet = Packet()
-        close_packet.board = self.BOARD
+        close_packet.board = self.AC_BOARD
         close_packet.id = 100
         close_packet.fields = {
-            "actuatorNumber": self.CHANNEL,
+            "actuatorNumber": self.AC_CHANNEL,
             "action": "OFF",
             "actuateTime": 0
         }
-        return close_packet.send()
+        close_packet.send()
 
     # sends abort packet
     # TO DO: ABORTS SHOULD SEND OVER BROADCAST (PACKET.PY UPDATE)
     def av_send_abort(self):
         abort_packet = Packet()
-        abort_packet.board = self.BOARD
+        abort_packet.board = self.AC_BOARD
         abort_packet.id = 133
         abort_packet.fields = {
             "systemMode": "COLDFLOW", # NEED GLOBAL SE SYSTEMMODE MAYBE
             "abortReason": "NOS_OVERPRESSURE" # NEED MEMBER BOOL TO SEE IF NOS OR IPA
         }
-        return abort_packet.send()
+        abort_packet.send()
 
     
     

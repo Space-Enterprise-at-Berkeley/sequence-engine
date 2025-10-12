@@ -50,7 +50,7 @@ autovent_init()
 
 while True:
     read_packets_mc()
-    PacketBuffer.buffer["PT_2"][2].print()
-    #PacketBuffer.print()
+    #PacketBuffer.buffer["PT_2"][2].print()
+    PacketBuffer.print()
     # for sequence in sequences:
     #     sequence.run(time.time())
