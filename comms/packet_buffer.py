@@ -1,3 +1,5 @@
+import warnings
+
 from comms.packet import Packet
 from comms.packet_config import config
 
@@ -16,10 +18,26 @@ class PacketBuffer:
         for board, packets in PacketBuffer.buffer.items():
             print("-------------------------------")
             print(f"{board}:")
-            for packet in packets.values():
-                packet.print()
-
+            for id, packet in packets.items():
+                it = PacketBuffer.iterators[board][id]
+                packet[it].print()
             print("-------------------------------")
+
+    # prints 'num' most recent (up to PacketBuffer.MAX_BUFFER_SIZE) packets of specified type
+    def print_packet(board: str, id: int, num=1):
+        try:
+            it = PacketBuffer.iterators[board][id]
+        except KeyError:
+            warnings.warn(f"Error: board name or packet id does not exist")
+            return
+        
+        if num > PacketBuffer.MAX_BUFFER_SIZE:
+            warnings.warn(f"requested number is greater than buffer size, printing {PacketBuffer.MAX_BUFFER_SIZE}")
+            num = 10
+
+        for i in range(num):
+            packet = PacketBuffer.buffer[board][id][(it + i) % PacketBuffer.MAX_BUFFER_SIZE]
+            packet.print()
 
     def update(packet):
         iterator = 0
