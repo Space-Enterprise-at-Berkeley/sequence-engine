@@ -47,7 +47,7 @@ def send_packet(packet, data):
             mono_sock.connect((ENGINE_IP, BCAST_PORT))
             mono_sock.sendall(data)
         except Exception as e:
-            warnings.warn(f"Sequence engine could not connect to {packet.board}:{ip}")
+            print(f"Sequence engine could not connect to {packet.board}:{ip}")
             mono_sock.close()
 
             mono_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)

@@ -1,12 +1,15 @@
 import socket
 import struct # pack and unpack byte arrays
 import sys
-import warnings
 from enum import Enum
 
 import json
 
-from comms.packet_config import config
+try:
+    from comms.packet_config import config
+except ModuleNotFoundError:
+    from packet_config import config
+
 # from comms.packet_comms import send_packet
 
 # enum: only exists if values are enums
@@ -53,39 +56,40 @@ class Packet:
         # get packet id from name
         self.id = next((id for id, vals in config.boards["SE"].writes.items() if vals.get("name") == self.name), None)
         if self.id is None:
-            warnings.warn(f"Error: Sequence Engine has no packet with name {self.name}")
+            print(f"Error: Sequence Engine has no packet with name {self.name}")
             return False
 
         # find right packet for id
-        packet_type = config.boards["SE"].writes.get(self.id)
+        packet_type = config.boards["SE"].writes.get(self.id)["payload"]
         if packet_type is None:
-            warnings.warn(f"Error: Sequence Engine has no packet with id {self.id}")
+            print(f"Error: Sequence Engine has no packet with id {self.id}")
             return False
         
         # check destination board can read packet
-        dest_packet = config.boards[self.board].reads.get(self.id)
+        dest_packet = config.boards[self.board].reads.get(self.id)["payload"]
         if dest_packet is None or dest_packet != packet_type:
-            warnings.warn(f"Error: {self.board} cannot read packet type {packet_type}")
+            print(f"Error: {self.board} cannot read packet type {packet_type}")
             return False
         
         # check data is formatted correctly
+        print(f"packet type {packet_type}")
         for item in config.types[packet_type]:
             field = self.fields.get(item["symbol"])
             if field is None:
-                warnings.warn(f"Error: missing field {item["symbol"]}")
+                print(f"Error: missing field {item["symbol"]}")
                 return False
             
             if "array" in item:
                 length = item["array"]
                 if not (isinstance(field, list) and len(field) == length):
-                    warnings.warn(f"Error: field {field} is formatted incorrectly")
+                    print(f"Error: field {field} is formatted incorrectly")
                     return False
                 
             if "enum" in item:
                 if not (field in config.types[item["enum"]].keys()):
-                    warnings.warn(f"Error: {item["enum"]} has no key {field}")
+                    print(f"Error: {item["enum"]} has no key {field}")
                     return False
-                
+        
         return True
 
     # send packet
@@ -93,14 +97,14 @@ class Packet:
     # ALSO HANDLE GD AND ABORT PACKET SENDING (SPECIAL CASES)
     def send(self):
         if not self.validate_packet():
-            warnings.warn(f"Error: attempted to send invalid packet")
+            print(f"Error: attempted to send invalid packet")
             return
         
         # the bytearray construction might be weird/messy but couldn't think of a different way
         # start by filling in data
         data_out = bytearray()
 
-        packet_type = config.boards["SE"].writes.get(self.id)
+        packet_type = config.boards["SE"].writes.get(self.id)["payload"]
         data_length = 0
         for item in config.types[packet_type]:
             format, length = get_data_format(item)
@@ -169,10 +173,12 @@ def parse_packet(data, addr):
     uptime = unpack[2]
     checksum = unpack[3]
 
+    print(f"packet from {board_id}")
+
     # add board name to packet
     if board_id not in config.id_to_board: # confirm packet board id
-        warnings.warn(f"Warning: IP {addr[0]} not recognized")
-        packet.error = True
+        print(f"Warning: IP {addr[0]} not recognized")
+        error = True
         return packet
     
     board = config.boards[config.id_to_board[board_id]]
@@ -186,13 +192,13 @@ def parse_packet(data, addr):
     
     # confirm checksum validity
     if not expected_checksum == checksum:
-        warnings.warn(f"Warning: Invalid checksum from {board} (packet id {id})")
+        print(f"Warning: Invalid checksum from {board} (packet id {id})")
         packet.error = True
         return packet
     
     # confirm packet id validity
     if not id in board.writes:
-        warnings.warn(f"Warning: Unrecognized packet {id} on {board}")
+        print(f"Warning: Unrecognized packet {id} on {board}")
         packet.error = True
         return packet
 
