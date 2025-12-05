@@ -36,7 +36,7 @@ if __name__ == "__main__":
                     print(f"Using port {args.port} ({p.description} {args.baud})")
                 break
         if args.port is None:
-            print("Did not auto-detect a serial port. Please select one:")
+            print("Did not find a USB Serial Device. Is one connected? Ports:")
             for i, p in enumerate(ports):
                 print(f"{i}: {p.device} ({p.description})")
             sel = int(input("Select port #: "))
@@ -164,6 +164,7 @@ def send_debug_packet():
     #test.print()
     #print(packet_data)
     packet_data = len(addr).to_bytes(1, "little") + addr.encode() + packet_data
+    mono_sock.sendto(packet_data, ('127.0.0.1', BCAST_PORT))
     #print(f"bytes sent: {mono_sock.sendto(packet_data, ('127.0.0.1', BCAST_PORT))}")
 
 
@@ -188,6 +189,7 @@ while 1:
             ser.reset_input_buffer()
             ser.reset_output_buffer()
             error = False
+            
         packet = read_one_packet()
         if packet is None:
             print(f"Failed to read packet; trying again")
