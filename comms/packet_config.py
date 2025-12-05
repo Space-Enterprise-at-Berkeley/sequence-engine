@@ -79,4 +79,4 @@ class Config:
             self.channels[name] = channels
 
 config = Config()
-print(config.boards["FC_1"].reads)
+#print(config.boards["FC_1"].reads)

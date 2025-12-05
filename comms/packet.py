@@ -37,7 +37,7 @@ class Packet:
             print("Error: Cannot read packet")
         else:
             print()
-            print(f"**{config.boards[self.board].writes[self.id]["name"]} packet (id {self.id}) sent from {self.board} board**")
+            print(f"**{config.boards[self.board].writes[self.id]['name']} packet (id {self.id}) sent from {self.board} board**")
             for name, field in self.fields.items():
                 print(f"{name}", end = '')
 
@@ -76,7 +76,7 @@ class Packet:
         for item in config.types[packet_type]:
             field = self.fields.get(item["symbol"])
             if field is None:
-                print(f"Error: missing field {item["symbol"]}")
+                print(f"Error: missing field {item['symbol']}")
                 return False
             
             if "array" in item:
@@ -87,7 +87,7 @@ class Packet:
                 
             if "enum" in item:
                 if not (field in config.types[item["enum"]].keys()):
-                    print(f"Error: {item["enum"]} has no key {field}")
+                    print(f"Error: {item['enum']} has no key {field}")
                     return False
         
         return True

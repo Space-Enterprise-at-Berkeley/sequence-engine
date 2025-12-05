@@ -141,7 +141,7 @@ def send_debug_packet():
     test.print()
     #print(packet_data)
     packet_data = len(addr).to_bytes(1, "little") + addr.encode() + packet_data
-    print(f"bytes sent: {mono_sock.sendto(packet_data, ("127.0.0.1", BCAST_PORT))}")
+    print(f"bytes sent: {mono_sock.sendto(packet_data, ('127.0.0.1', BCAST_PORT))}")
 
 
 # -----------------------------------------------------
@@ -163,7 +163,7 @@ while 1:
         packet = len(addr).to_bytes(1, "little") + addr.encode() + packet
         if args.debug:
             print("sending packet to loopback")
-            print(f"bytes sent: {mono_sock.sendto(packet, ("127.0.0.1", BCAST_PORT))}")
+            print(f"bytes sent: {mono_sock.sendto(packet, ('127.0.0.1', BCAST_PORT))}")
             print()
 
     except ValueError as e:
