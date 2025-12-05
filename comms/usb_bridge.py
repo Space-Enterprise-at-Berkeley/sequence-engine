@@ -1,4 +1,9 @@
-import socket, struct, sys, serial, argparse, warnings, time
+import socket, struct, sys, serial, argparse, warnings, time, threading
+try:
+    from scapy.all import sniff, IP, UDP
+except Exception:
+    print("Scapy not available! pip install scapy")
+    sys.exit(1)
 
 from serial.serialutil import SerialException
 
@@ -65,6 +70,44 @@ timeouts = 0 # timeout counter
 ser = serial.Serial(args.port, args.baud, timeout=3)
 ser.reset_input_buffer()
 ser.reset_output_buffer()
+serial_lock = threading.Lock()
+
+def write_serial_wrapped(data: bytes):
+    """Write payload to serial wrapped with [[ and ]]. Thread-safe."""
+    try:
+        with serial_lock:
+            ser.write(b"[[")
+            ser.write(data)
+            ser.write(b"]]")
+            ser.flush()
+    except SerialException as e:
+        print(f"Serial write exception: {e}")
+
+# start a scapy-based monitor thread to forward outgoing UDP payloads
+# this is for commands from dashboard to FC.
+def scapy_monitor(target_ip: str, target_port: int):
+    bpf = f"udp and dst host {target_ip} and dst port {target_port}"
+    print(f"Starting scapy monitor: {bpf}")
+
+    def _handle(pkt):
+        try:
+            if IP in pkt and UDP in pkt and pkt[IP].dst == target_ip:
+                if target_port is None or pkt[UDP].dport == target_port:
+                    payload = bytes(pkt[UDP].payload)
+                    if payload:
+                        print(f"forwarding {len(payload)} bytes from dashboard -> FC")
+                        write_serial_wrapped(payload)
+        except Exception as e:
+            print(f"scapy handler error: {e}")
+
+    # sniff runs forever; run it in this thread
+    try:
+        sniff(filter=bpf, prn=_handle, store=False)
+    except Exception as e:
+        print(f"scapy sniff failed: {e}")
+
+t = threading.Thread(target=scapy_monitor, args=(addr, BCAST_PORT), daemon=True)
+t.start()
 
 def read_exactly(n: int) -> bytes:
     global bps, timeouts
