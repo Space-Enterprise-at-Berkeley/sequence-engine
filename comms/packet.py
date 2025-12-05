@@ -72,7 +72,7 @@ class Packet:
             return False
         
         # check data is formatted correctly
-        print(f"packet type {packet_type}")
+        #print(f"packet type {packet_type}")
         for item in config.types[packet_type]:
             field = self.fields.get(item["symbol"])
             if field is None:
@@ -173,7 +173,7 @@ def parse_packet(data, addr):
     uptime = unpack[2]
     checksum = unpack[3]
 
-    print(f"packet from {board_id}")
+    #print(f"packet from {board_id}")
 
     # add board name to packet
     if board_id not in config.id_to_board: # confirm packet board id

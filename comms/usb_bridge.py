@@ -1,5 +1,7 @@
 import socket, struct, sys, serial, argparse, warnings, time
 
+from serial.serialutil import SerialException
+
 if __name__ == "__main__":
     from packet import Packet, parse_packet
     from packet_config import config
@@ -8,14 +10,38 @@ if __name__ == "__main__":
     MCAST_PORT = 42080
 
     ap = argparse.ArgumentParser(description="serial→Ethernet bridge (UDP)")
-    ap.add_argument("-p", "--port", required=True)
-    ap.add_argument("-i", "--id", help="the id of the FC board")
+    ap.add_argument("-p", "--port", help="serial comport to use")
     ap.add_argument("-b", "--baud", default=230400)
-    ap.add_argument("-d", "--debug", action="store_true")
     ap.add_argument("-v", "--verbose", action="store_true")
 
     args = ap.parse_args()
 
+    #find comport if not given
+    if args.port is None:
+        import serial.tools.list_ports
+        ports = list(serial.tools.list_ports.comports())
+        if len(ports) == 0:
+            print("No serial ports found!")
+            sys.exit(1)
+        #look for one with serial in the description
+        for p in ports:
+            if "serial" in p.description.lower():
+                args.port = p.device
+                print(f"Using port {args.port} ({p.description})")
+                # if manufacturer is espressif, shift baud to 921600
+                if p.manufacturer and "espressif" in p.manufacturer.lower():
+                    args.baud = 921600
+                    print(f"Found Espressif device; setting baud to {args.baud}")
+                    args.port = p.device
+                    print(f"Using port {args.port} ({p.description} {args.baud})")
+                break
+        if args.port is None:
+            print("Did not auto-detect a serial port. Please select one:")
+            for i, p in enumerate(ports):
+                print(f"{i}: {p.device} ({p.description})")
+            sel = int(input("Select port #: "))
+            args.port = ports[sel].device
+            print(f"Using port {args.port} ({ports[sel].description} {args.baud}) ")
     #define ips
     mono_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 
@@ -111,9 +137,6 @@ def read_one_packet() -> list[int]:
         print(f"received and successfully parsed packet:")
         packet = parse_packet(packet_bytes, [addr])
         packet.print()
-    else:
-        print("received and successfully parsed packet:")
-        print(packet_bytes)
     pps += 1
 
     return packet_bytes
@@ -131,17 +154,17 @@ def send_debug_packet():
         "timeoutCount": timeouts
     }
 
-    print("------------------------")
+    #print("------------------------")
     print(f"{bps} bytes per second | {pps} packets per second | {err_count} malformed packets | {timeouts} timeouts")
-    print("------------------------")
+    #print("------------------------")
 
     packet_data = packet.send()
-    print("sending debug packet")
+    #print("sending debug packet")
     test = parse_packet(packet_data, [addr])
-    test.print()
+    #test.print()
     #print(packet_data)
     packet_data = len(addr).to_bytes(1, "little") + addr.encode() + packet_data
-    print(f"bytes sent: {mono_sock.sendto(packet_data, ('127.0.0.1', BCAST_PORT))}")
+    #print(f"bytes sent: {mono_sock.sendto(packet_data, ('127.0.0.1', BCAST_PORT))}")
 
 
 # -----------------------------------------------------
@@ -154,27 +177,39 @@ prevTime = 0
 secondCounter = 0
 
 # main loop, read packet bytes, remove delimiters, send over ethernet
+error = False
 while 1:
     try:
+        if error:
+            print("Attempting to resync...")
+            ser.close()
+            time.sleep(1)
+            ser.open()
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+            error = False
         packet = read_one_packet()
         if packet is None:
             print(f"Failed to read packet; trying again")
             continue
         packet = len(addr).to_bytes(1, "little") + addr.encode() + packet
-        if args.debug:
-            print("sending packet to loopback")
-            print(f"bytes sent: {mono_sock.sendto(packet, ('127.0.0.1', BCAST_PORT))}")
-            print()
+        mono_sock.sendto(packet, ('127.0.0.1', BCAST_PORT))
+        # if args.debug:
+        #     print("sending packet to loopback")
+        #     print(f"bytes sent: {mono_sock.sendto(packet, ('127.0.0.1', BCAST_PORT))}")
+        #     print()
 
     except ValueError as e:
         print(e)
+    except SerialException as e:
+        print(f"Serial exception: {e}")
+        error = True
 
-    if args.verbose:
-        currTime = time.time()
-        secondCounter += currTime - prevTime
-        prevTime = currTime
-        if secondCounter >= 1:
-            send_debug_packet()
-            bps = 0
-            pps = 0
-            secondCounter = 0
+    currTime = time.time()
+    secondCounter += currTime - prevTime
+    prevTime = currTime
+    if secondCounter >= 1:
+        send_debug_packet()
+        bps = 0
+        pps = 0
+        secondCounter = 0
