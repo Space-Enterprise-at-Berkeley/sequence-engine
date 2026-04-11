@@ -95,7 +95,7 @@ class Packet:
     # send packet
     # TO DO: SET UP ACTUAL SENDING CODE, THIS JUST BUILDS THE BYTEARRAY
     # ALSO HANDLE GD AND ABORT PACKET SENDING (SPECIAL CASES)
-    def send(self):
+    def send(self, timebytes = bytearray(4)):
         if not self.validate_packet():
             print(f"Error: attempted to send invalid packet")
             return
@@ -131,6 +131,7 @@ class Packet:
         # pack the header (see parse_packet for format) and calculate checksum
         out = bytearray(byte_length)
         struct.pack_into(header_format, out, 0, self.id, data_length, 0, 0)
+        out[2:6] = timebytes
 
         checksum = fletcher16(out[:-2] + data_out)
         struct.pack_into("H", out, byte_length - 2, checksum)

@@ -18,6 +18,7 @@ if __name__ == "__main__":
     ap.add_argument("-p", "--port", help="serial comport to use")
     ap.add_argument("-b", "--baud", default=230400)
     ap.add_argument("-v", "--verbose", action="store_true")
+    ap.add_argument("-r", "--remote", help="enable if this is running on a pi/remote interface", action="store_true")
 
     args = ap.parse_args()
 
@@ -65,6 +66,7 @@ bps = 0 # bytes per second
 pps = 0 # packets per second
 err_count = 0 # packet error count
 timeouts = 0 # timeout counter
+last_time = bytearray(4) # for adding matching timestamps to debug packets
 
 # Serial
 ser = serial.Serial(args.port, args.baud, timeout=3)
@@ -142,7 +144,7 @@ def sync_to_start():
             got_open = 0
 
 def read_one_packet() -> list[int]:
-    global bps, err_count, pps
+    global bps, err_count, pps, last_time
 
     # 1) sync to start
     if not sync_to_start():
@@ -175,6 +177,7 @@ def read_one_packet() -> list[int]:
     # [id, len, ts0..3, csum0, csum1, data...]
     # packet_bytes = list(hdr[:6]) + list(hdr[6:8]) + list(data)
     packet_bytes = bytearray(hdr[:6]) + bytearray(hdr[6:8] + bytearray(data))
+    last_time = hdr[2:6]
 
     if args.verbose:
         print(f"received and successfully parsed packet:")
@@ -201,14 +204,20 @@ def send_debug_packet():
     print(f"{bps} bytes per second | {pps} packets per second | {err_count} malformed packets | {timeouts} timeouts")
     #print("------------------------")
 
-    packet_data = packet.send()
+    packet_data = packet.send(timebytes=last_time)
     #print("sending debug packet")
     test = parse_packet(packet_data, [addr])
     #test.print()
     #print(packet_data)
-    packet_data = len(addr).to_bytes(1, "little") + addr.encode() + packet_data
-    mono_sock.sendto(packet_data, ('127.0.0.1', BCAST_PORT))
+    emit_packet(packet_data)
     #print(f"bytes sent: {mono_sock.sendto(packet_data, ('127.0.0.1', BCAST_PORT))}")
+
+def emit_packet(packet):
+    if args.remote:
+        mono_sock.sendto(packet, ('224.0.0.3', MCAST_PORT))
+    else:
+        packet = len(addr).to_bytes(1, "little") + addr.encode() + packet
+        mono_sock.sendto(packet, ('127.0.0.1', BCAST_PORT))
 
 
 # -----------------------------------------------------
@@ -237,8 +246,7 @@ while 1:
         if packet is None:
             print(f"Failed to read packet; trying again")
             continue
-        packet = len(addr).to_bytes(1, "little") + addr.encode() + packet
-        mono_sock.sendto(packet, ('127.0.0.1', BCAST_PORT))
+        emit_packet(packet)
         # if args.debug:
         #     print("sending packet to loopback")
         #     print(f"bytes sent: {mono_sock.sendto(packet, ('127.0.0.1', BCAST_PORT))}")
