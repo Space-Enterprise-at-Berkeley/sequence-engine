@@ -74,6 +74,8 @@ ser.reset_input_buffer()
 ser.reset_output_buffer()
 serial_lock = threading.Lock()
 
+print(f"Successfully connected to port {args.port} ({p.description} {args.baud})")
+
 def write_serial_wrapped(data: bytes):
     """Write payload to serial wrapped with [[ and ]]. Thread-safe."""
     try:
