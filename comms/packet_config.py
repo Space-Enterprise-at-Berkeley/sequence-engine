@@ -2,7 +2,7 @@ import re
 import json
 import fnmatch # filename matching in packets.jsonc
 
-PACKET_SPEC_PATH = "../universalproto/"
+PACKET_SPEC_PATH = "universalproto/"
 
 class Board:
     def __init__(self, name, id):

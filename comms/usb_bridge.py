@@ -22,6 +22,7 @@ if __name__ == "__main__":
 
     args = ap.parse_args()
 
+    p = None
     #find comport if not given
     if args.port is None:
         import serial.tools.list_ports
@@ -74,7 +75,7 @@ ser.reset_input_buffer()
 ser.reset_output_buffer()
 serial_lock = threading.Lock()
 
-print(f"Successfully connected to port {args.port} ({p.description} {args.baud})")
+print(f"Successfully connected to port {args.port} ({(p.description + ' ') if p else ''}{args.baud})")
 
 def write_serial_wrapped(data: bytes):
     """Write payload to serial wrapped with [[ and ]]. Thread-safe."""

@@ -111,7 +111,7 @@ class Packet:
             byte_length = get_byte_length(format)
             data_length += byte_length
             data = self.fields[item["symbol"]]
-
+        
             temp_out = bytearray(byte_length)
             if length == 1:
                 if "enum" in item:
@@ -135,6 +135,8 @@ class Packet:
 
         checksum = fletcher16(out[:-2] + data_out)
         struct.pack_into("H", out, byte_length - 2, checksum)
+        print(byte_length, len(out), out)
+        print(out[0], out[1], out[2], out[3], out[4], out[5], out[6], out[7])
 
         out.extend(data_out)
         return out
