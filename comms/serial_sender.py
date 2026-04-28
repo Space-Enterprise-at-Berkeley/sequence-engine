@@ -4,7 +4,7 @@ from packet_config import config
 from serial.serialutil import SerialException
 
 packet = Packet()
-packet.name = "FCEnableBB"
+packet.name = "FCEnableRuncamPDB"
 packet.board = "SE"
 packet.fields = {
     "action": "ENABLE"
@@ -18,9 +18,16 @@ ap = argparse.ArgumentParser(description="serial→Ethernet bridge (UDP)")
 ap.add_argument("-s", "--send", action="store_true")
 ap.add_argument("-p", "--port", help="serial comport to use")
 ap.add_argument("-b", "--baud", default=115200)
+ap.add_argument("-v", "--verbose", action="store_true")
+ap.add_argument("-r", "--remote", help="enable if this is running on a pi/remote interface", action="store_true")
+
 args = ap.parse_args()
 
+
 if args.send:
+    BCAST_PORT = 42099
+    MCAST_PORT = 42080
+
     #find comport if not given
     if args.port is None:
         import serial.tools.list_ports
@@ -47,6 +54,8 @@ if args.send:
             sel = int(input("Select port #: "))
             args.port = ports[sel].device
             print(f"Using port {args.port} ({ports[sel].description} {args.baud}) ")
+    
+    mono_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 
     ser = serial.Serial(args.port, args.baud, timeout=3)
     print(ser)
@@ -65,6 +74,10 @@ if args.send:
                 ser.flush()
         except SerialException as e:
             print(f"Serial write exception: {e}")
+
+    fc_id = config.board_to_id["FC_1"]
+    addr=f"10.0.0.{fc_id}"
+    print(f"addr:{addr}")
 
     # initialize rate variables
     bps = 0 # bytes per second
@@ -157,7 +170,44 @@ if args.send:
         print(bit[:100])
 
     
-    error = False
+def emit_packet(packet):
+    if args.remote:
+        mono_sock.sendto(packet, ('224.0.0.3', MCAST_PORT))
+    else:
+        packet = len(addr).to_bytes(1, "little") + addr.encode() + packet
+        mono_sock.sendto(packet, ('127.0.0.1', BCAST_PORT))
+
+def send_debug_packet():
+    global bps, pps, err_count, timeouts, BCAST_PORT, mono_sock
+
+    packet = Packet()
+    packet.name = "DummyRates"
+    packet.board = "FC_1"
+    packet.fields = {
+        "byteRate": bps,
+        "packetRate": pps,
+        "errorCount": err_count,
+        "timeoutCount": timeouts
+    }
+
+    #print("------------------------")
+    print(f"{bps} bytes per second | {pps} packets per second | {err_count} malformed packets | {timeouts} timeouts")
+    #print("------------------------")
+
+    packet_data = packet.send(timebytes=last_time)
+    #print("sending debug packet")
+    test = parse_packet(packet_data, [addr])
+    #test.print()
+    #print(packet_data)
+    emit_packet(packet_data)
+
+    
+error = False
+
+prevTime = 0
+secondCounter = 0
+seconds = 0
+
 while 1:
     try:
         if error:
@@ -173,9 +223,24 @@ while 1:
         if packet is None:
             print(f"Failed to read packet; trying again")
             continue
+        emit_packet(packet)
+
 
     except ValueError as e:
         print(e)
     except SerialException as e:
         print(f"Serial exception: {e}")
         error = True
+
+    currTime = time.time()
+    secondCounter += currTime - prevTime
+    prevTime = currTime
+    if secondCounter >= 1:
+        send_debug_packet()
+        bps = 0
+        pps = 0
+        secondCounter = 0
+        seconds += 1
+    
+
+    
