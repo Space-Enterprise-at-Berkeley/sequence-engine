@@ -4,7 +4,7 @@ from packet_config import config
 from serial.serialutil import SerialException
 
 packet = Packet()
-packet.name = "FCEnableBB"
+packet.name = "FCEnableBaroCalibration"
 packet.board = "SE"
 packet.fields = {
     "action": "ENABLE"
